@@ -6,11 +6,11 @@ using Microsoft.AspNetCore.SignalR;
 
 namespace BlazorApp.Server.Hubs
 {
-    public class GreetingHub : Hub
+    public class GroupRoomHub : Hub
     {
-        public Task Greet(string name)
+        public async void Join(string name)
         {
-            return Clients.Caller.SendAsync("Greeting", name);
+            await Clients.All.SendAsync("Joined", $"{name} joined the room.");
         }
     }
 }

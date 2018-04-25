@@ -1,0 +1,40 @@
+﻿@using BlazorApp.Client.SignalR
+
+<label>
+    Who are you?
+    <input type="text" bind="Name" />
+</label>
+<button onclick="@JoinTheRoom">Join the room!</button>
+
+<ul>
+    @foreach (var message in Messages)
+    {
+        <li>@message</li>
+    }
+</ul>
+@functions{
+    public string Name { get; set; }
+    public IList<string> Messages { get; set; } = new List<string>();
+    public HubConnection Hub { get; set; }
+
+    protected override Task OnInitAsync()
+    {
+        Hub = new HubConnection(
+            "/grouproom",
+            new HubConnectionOptions { Logger = LogLevel.Information });
+
+        Hub.On("Joined", (string message) =>
+        {
+            Messages.Add(message);
+            StateHasChanged();
+        });
+
+        return Task.CompletedTask;
+    }
+
+    public async void JoinTheRoom()
+    {
+        await Hub.Start();
+        await Hub.Send("Join", Name);
+    }
+}

@@ -46,7 +46,7 @@ namespace BlazorApp.Server
                 app.UseDeveloperExceptionPage();
             }
 
-            app.UseSignalR(hrb => hrb.MapHub<GreetingHub>("/greetings"));
+            app.UseSignalR(hrb => hrb.MapHub<GroupRoomHub>("/grouproom"));
 
             app.UseMvc(routes =>
             {

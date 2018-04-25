@@ -3,7 +3,12 @@
   <PropertyGroup>
     <TargetFramework>netstandard2.0</TargetFramework>
     <OutputType>Exe</OutputType>
+    <TypeScriptToolsVersion>2.8</TypeScriptToolsVersion>
   </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="node_modules/**/*" />
+  </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.Razor.Design" Version="2.1.0-preview2-final" PrivateAssets="all" />
@@ -13,6 +18,15 @@
 
   <ItemGroup>
     <ProjectReference Include="..\BlazorApp.Shared\BlazorApp.Shared.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <TypeScriptCompile Include="scripts\js\app.ts" />
+    <TypeScriptCompile Include="scripts\js\signalRPlatform.ts" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <BlazorGenerate Remove="Components\GroupRoom.cshtml" />
   </ItemGroup>
 
 </Project>
