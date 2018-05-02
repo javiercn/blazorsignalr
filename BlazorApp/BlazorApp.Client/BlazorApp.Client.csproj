@@ -22,11 +22,18 @@
 
   <ItemGroup>
     <TypeScriptCompile Include="scripts\js\app.ts" />
+    <TypeScriptCompile Include="scripts\js\DotNetInvoke.ts" />
     <TypeScriptCompile Include="scripts\js\signalRPlatform.ts" />
+    <TypeScriptCompile Include="scripts\js\tests.ts" />
   </ItemGroup>
 
   <ItemGroup>
     <BlazorGenerate Remove="Components\GroupRoom.cshtml" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Remove="scripts\js\DotNetInvoke.ts" />
+    <None Remove="scripts\js\tests.ts" />
   </ItemGroup>
 
 </Project>
