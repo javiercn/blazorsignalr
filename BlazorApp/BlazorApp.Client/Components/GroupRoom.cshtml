@@ -19,9 +19,10 @@
 
     protected override Task OnInitAsync()
     {
-        Hub = new HubConnection(
-            "/grouproom",
-            new HubConnectionOptions { Logger = LogLevel.Information });
+        Hub = new HubConnectionBuilder()
+            .WithUrl("/grouproom")
+            .ConfigureLogging(factory => factory.SetMinimumLevel(LogLevel.Information))
+            .Build();
 
         Hub.On("Joined", (string message) =>
         {
@@ -34,7 +35,7 @@
 
     public async void JoinTheRoom()
     {
-        await Hub.Start();
-        await Hub.Send("Join", Name);
+        await Hub.StartAsync();
+        await Hub.SendAsync("Join", Name);
     }
 }

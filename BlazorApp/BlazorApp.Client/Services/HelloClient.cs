@@ -17,8 +17,8 @@ namespace BlazorApp.Client.Services
 
         public HubConnection Hub { get; }
 
-        public Task InitAsync() => Hub.Start();
+        public Task InitAsync() => Hub.StartAsync();
 
-        public Task Greet(string name) => Hub.Send("Greet", name);
+        public Task Greet(string name) => Hub.SendAsync("Greet", name);
     }
 }

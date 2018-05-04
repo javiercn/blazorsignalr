@@ -35,7 +35,7 @@ namespace BlazorApp.Client.SignalR
             Instances[_id] = this;
         }
 
-        public Task Send(string method, string argument)
+        public Task SendAsync<T1>(string method, T1 argument)
         {
             TaskCompletionSource<bool> tcs = new TaskCompletionSource<bool>();
 
@@ -62,7 +62,7 @@ namespace BlazorApp.Client.SignalR
             }));
         }
 
-        public Task Start()
+        public Task StartAsync()
         {
             TaskCompletionSource<bool> tcs = new TaskCompletionSource<bool>();
 
@@ -193,6 +193,11 @@ namespace BlazorApp.Client.SignalR
     public class HubConnectionOptions
     {
         public LogLevel Logger { get; set; }
+
+        public void SetMinimumLevel(LogLevel logLevel)
+        {
+            Logger = logLevel;
+        }
     }
 
     public enum LogLevel
