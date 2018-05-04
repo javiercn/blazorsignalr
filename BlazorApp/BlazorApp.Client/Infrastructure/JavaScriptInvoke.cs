@@ -17,7 +17,6 @@ namespace BlazorApp.Client.Infrastructure
         {
             var options = JsonUtil.Deserialize<MethodOptions>(methodOptions);
             var argumentDeserializer = GetOrCreateArgumentDeserializer(options);
-            Console.WriteLine(methodArguments ?? "(null)");
             var invoker = GetOrCreateInvoker(options, argumentDeserializer);
 
             var result = invoker(methodArguments);
@@ -31,9 +30,20 @@ namespace BlazorApp.Client.Infrastructure
                 {
                     if (task.Status == TaskStatus.RanToCompletion)
                     {
-                        RegisteredFunction.Invoke<bool>(
-                            options.Async.FunctionName,
-                            options.Async.ResolveId);
+                        if (task.GetType().GetGenericTypeDefinition() == typeof(Task<>))
+                        {
+                            var returnValue = task.GetType().GetProperty("Result").GetValue(task);
+                            RegisteredFunction.Invoke<bool>(
+                                options.Async.FunctionName,
+                                options.Async.ResolveId,
+                                returnValue);
+                        }
+                        else
+                        {
+                            RegisteredFunction.Invoke<bool>(
+                                options.Async.FunctionName,
+                                options.Async.ResolveId);
+                        }
                     }
                     else
                     {
@@ -61,19 +71,133 @@ namespace BlazorApp.Client.Infrastructure
             var toParameterListMethod = argsClass.GetMethods(BindingFlags.Instance | BindingFlags.Public)
                 .Where(m => string.Equals(nameof(ArgumentList.ToParameterList), m.Name))
                 .Single();
+
             return Deserialize;
 
             object[] Deserialize(string arguments)
             {
-                Console.WriteLine("Deserializer: " + deserializeMethod == null ? "(null)" : "non-null");
-                Console.WriteLine("ToParameterList: " + toParameterListMethod == null ? "(null)" : "non-null");
-                Console.WriteLine("I got updated!");
                 var argsInstance = deserializeMethod.Invoke(null, new object[] { arguments });
-                Console.WriteLine(argsInstance.GetType().FullName);
                 return (object[])toParameterListMethod.Invoke(argsInstance, Array.Empty<object>());
             }
         }
 
+        public static Task InvokeJavaScriptVoidFunctionAsync(string identifier, params object[] args)
+        {
+            var tcs = new TaskCompletionSource<int>();
+            var argsJson = args.Select(JsonUtil.Serialize);
+            var successId = Guid.NewGuid().ToString();
+            var failureId = Guid.NewGuid().ToString();
+            var asyncProtocol = JsonUtil.Serialize(new
+            {
+                Success = successId,
+                Failure = failureId,
+                Function = new MethodOptions
+                {
+                    Type = new TypeInstance
+                    {
+                        Assembly = typeof(JavaScriptInvoke).Assembly.FullName,
+                        TypeName = typeof(JavaScriptInvoke).FullName
+                    },
+                    Method = new MethodInstance
+                    {
+                        Name = nameof(JavaScriptInvoke.InvokeTaskCallback),
+                        ParameterTypes = new[]
+                        {
+                            new TypeInstance
+                            {
+                                Assembly = typeof(string).Assembly.FullName,
+                                TypeName = typeof(string).FullName
+                            }
+                        }
+                    }
+                }
+            });
+
+            TrackedReference.Track(successId, (new Action(() =>
+            {
+                tcs.SetResult(0);
+            })));
+
+            TrackedReference.Track(failureId, (new Action<string>(r =>
+            {
+                tcs.SetException(new InvalidOperationException(r));
+            })));
+
+            var resultJson = RegisteredFunction.InvokeUnmarshalled<string>(
+                "invokeWithJsonMarshallingAsync",
+                argsJson.Prepend(asyncProtocol).Prepend(identifier).ToArray());
+
+            return tcs.Task;
+        }
+
+        public static Task<TResult> InvokeJavaScriptFunctionAsync<TResult>(string identifier, params object[] args)
+        {
+            var tcs = new TaskCompletionSource<TResult>();
+            var argsJson = args.Select(JsonUtil.Serialize);
+            var successId = Guid.NewGuid().ToString();
+            var failureId = Guid.NewGuid().ToString();
+            var asyncProtocol = JsonUtil.Serialize(new
+            {
+                Success = successId,
+                Failure = failureId,
+                Function = new MethodOptions
+                {
+                    Type = new TypeInstance
+                    {
+                        Assembly = typeof(JavaScriptInvoke).Assembly.FullName,
+                        TypeName = typeof(JavaScriptInvoke).FullName
+                    },
+                    Method = new MethodInstance
+                    {
+                        Name = nameof(JavaScriptInvoke.InvokeTaskCallback),
+                        ParameterTypes = new[]
+                        {
+                            new TypeInstance
+                            {
+                                Assembly = typeof(string).Assembly.FullName,
+                                TypeName = typeof(string).FullName
+                            },
+                            new TypeInstance
+                            {
+                                Assembly = typeof(TResult).Assembly.FullName,
+                                TypeName = typeof(TResult).FullName
+                            }
+                        },
+                        TypeArguments = new Dictionary<string, TypeInstance>
+                        {
+                            [nameof(TResult)] = new TypeInstance
+                            {
+                                Assembly = typeof(TResult).Assembly.FullName,
+                                TypeName = typeof(TResult).FullName
+                            }
+                        }
+                    }
+                }
+            });
+
+            TrackedReference.Track(successId, (new Action<TResult>(r =>
+            {
+                tcs.SetResult(r);
+            })));
+
+            TrackedReference.Track(failureId, (new Action<string>(r =>
+            {
+                tcs.SetException(new InvalidOperationException(r));
+            })));
+
+            var resultJson = RegisteredFunction.InvokeUnmarshalled<string>(
+                "invokeWithJsonMarshallingAsync",
+                argsJson.Prepend(asyncProtocol).Prepend(identifier).ToArray());
+
+            return tcs.Task;
+        }
+
+        public static void InvokeTaskCallback<TResult>(string id, TResult result)
+        {
+            var reference = TrackedReference.Get(id);
+            var function = reference.TrackedInstance as Action<TResult>;
+            function(result);
+        }
     }
     public class ArgumentList
     {
@@ -123,6 +247,11 @@ namespace BlazorApp.Client.Infrastructure
     {
         public T1 Argument1 { get; set; }
         public T2 Argument2 { get; set; }
+
+        public static ArgumentList<T1, T2> JsonDeserialize(string item) =>
+            JsonUtil.Deserialize<ArgumentList<T1, T2>>(item);
+
+        public object[] ToParameterList() => new object[] { Argument1, Argument2 };
     }
 
     public class ArgumentList<T1, T2, T3>
@@ -232,5 +361,49 @@ namespace BlazorApp.Client.Infrastructure
         public string ResolveId { get; set; }
         public string RejectId { get; set; }
         public string FunctionName { get; set; }
+    }
+
+    internal class TrackedReference
+    {
+        private TrackedReference(string id, object reference)
+        {
+            Id = id;
+            TrackedInstance = reference;
+        }
+        private static IDictionary<string, TrackedReference> References { get; } =
+            new Dictionary<string, TrackedReference>();
+
+        public string Id { get; }
+
+        public object TrackedInstance { get; }
+
+        public static void Track(string id, object reference)
+        {
+            var trackedRef = new TrackedReference(id, reference);
+            if (References.ContainsKey(id))
+            {
+                throw new InvalidOperationException($"An element with id '{id}' is already being tracked.");
+            }
+
+            References.Add(id, trackedRef);
+        }
+
+        public static void Untrack(string id)
+        {
+            if (!References.ContainsKey(id))
+            {
+                throw new InvalidOperationException($"An element with id '{id}' is not being tracked.");
+            }
+        }
+
+        public static TrackedReference Get(string id)
+        {
+            if (!References.ContainsKey(id))
+            {
+                throw new InvalidOperationException($"An element with id '{id}' is not being tracked.");
+            }
+
+            return References[id];
+        }
     }
 }

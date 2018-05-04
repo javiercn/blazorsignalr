@@ -7,6 +7,7 @@ interface Pointer { Pointer__DO_NOT_IMPLEMENT: any }
 interface IBlazor {
     platform: IPlatform;
     registerFunction(identifier: string, implementation: Function): any;
+    getRegisteredFunction(identifier: string): Function;
 }
 
 interface IPlatform {
@@ -36,7 +37,11 @@ namespace DotnetInvoke {
         TypeArguments: { [key: string]: TypeInstance };
     }
 
-    export function invokeDotNetMethod<T>(methodOptions: MethodOptions, ...args: any[]): (T | null) {
+    export interface DotNetArgsList {
+        Argument1?: any;
+    }
+
+    export function invokeDotNetMethod<T>(methodOptions: MethodOptions, args: DotNetArgsList = {}): (T | null) {
         const method = Blazor.platform.findMethod(
             "BlazorApp.Client",
             "BlazorApp.Client.Infrastructure",
@@ -45,7 +50,6 @@ namespace DotnetInvoke {
 
         const serializedOptions = Blazor.platform.toDotNetString(JSON.stringify(methodOptions));
         const serializedArgs = Blazor.platform.toDotNetString(JSON.stringify(args));
-
         const serializedResult = Blazor.platform.callMethod(method, undefined, [serializedOptions, serializedArgs]);
 
         if (serializedResult !== null && serializedResult !== undefined && (serializedResult as any) !== 0) {
@@ -56,9 +60,11 @@ namespace DotnetInvoke {
         return null;
     }
 
-    export function invokeDotNetMethodAsync<T>(methodOptions: MethodOptions, ...args: any[]): PromiseLike<T | null> {
-        const resolveId = "1";
-        const rejectId = "2";
+    let globalId = 0;
+
+    export function invokeDotNetMethodAsync<T>(methodOptions: MethodOptions, args: DotNetArgsList = {}): PromiseLike<T | null> {
+        const resolveId = (globalId++).toString();
+        const rejectId = (globalId++).toString();
         methodOptions.Async = { ResolveId: resolveId, RejectId: rejectId, FunctionName: "Microsoft.AspNetCore.Blazor.InvokeJavaScriptCallback" };
 
         const result = new Promise<T | null>((resolve, reject) => {
@@ -75,6 +81,27 @@ namespace DotnetInvoke {
         const callbackRef = TrackedReference.get(id);
         const callback = callbackRef.trackedObject as Function;
         callback.apply(null, args);
+    }
+
+    export function invokeWithJsonMarshallingAsync(identifier: System_String, asyncProtocol: System_String, ...argsJson: System_String[]) {
+        const identifierJsString = Blazor.platform.toJavaScriptString(identifier);
+        const funcInstance = Blazor.getRegisteredFunction(identifierJsString);
+        const asyncJsString = Blazor.platform.toJavaScriptString(identifier);
+        const async = JSON.parse(asyncJsString) as { Success: string, Failure: string, Function: MethodOptions };
+        const args = argsJson.map(json => JSON.parse(Blazor.platform.toJavaScriptString(json)));
+        const result = funcInstance.apply(null, args) as Promise<any>;
+        result.then(res => {
+            if (async.Function.Method.TypeArguments !== undefined &&
+                Object.getOwnPropertyNames(async.Function.Method.TypeArguments).length > 0) {
+
+            }
+            if (res !== null && res !== undefined) {
+                const resultJson = JSON.stringify(result);
+                return Blazor.platform.toDotNetString(resultJson);
+            } else {
+                return null;
+            }
+        });
     }
 
     Blazor.registerFunction("Microsoft.AspNetCore.Blazor.InvokeJavaScriptCallback", invokeJavaScriptCallback);
