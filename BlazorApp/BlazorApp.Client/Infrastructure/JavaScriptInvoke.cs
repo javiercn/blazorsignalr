@@ -107,6 +107,11 @@ namespace BlazorApp.Client.Infrastructure
                             {
                                 Assembly = typeof(string).Assembly.FullName,
                                 TypeName = typeof(string).FullName
+                            },
+                            new TypeInstance
+                            {
+                                Assembly = typeof(string).Assembly.FullName,
+                                TypeName = typeof(string).FullName
                             }
                         }
                     }
@@ -159,26 +164,19 @@ namespace BlazorApp.Client.Infrastructure
                             },
                             new TypeInstance
                             {
-                                Assembly = typeof(TResult).Assembly.FullName,
-                                TypeName = typeof(TResult).FullName
-                            }
-                        },
-                        TypeArguments = new Dictionary<string, TypeInstance>
-                        {
-                            [nameof(TResult)] = new TypeInstance
-                            {
-                                Assembly = typeof(TResult).Assembly.FullName,
-                                TypeName = typeof(TResult).FullName
+                                Assembly = typeof(string).Assembly.FullName,
+                                TypeName = typeof(string).FullName
                             }
                         }
                     }
                 }
             });
 
-            TrackedReference.Track(successId, (new Action<TResult>(r =>
+            TrackedReference.Track(successId, new Action<string>(r =>
             {
-                tcs.SetResult(r);
-            })));
+                var res = JsonUtil.Deserialize<TResult>(r);
+                tcs.SetResult(res);
+            }));
 
             TrackedReference.Track(failureId, (new Action<string>(r =>
             {
@@ -192,10 +190,10 @@ namespace BlazorApp.Client.Infrastructure
             return tcs.Task;
         }
 
-        public static void InvokeTaskCallback<TResult>(string id, TResult result)
+        public static void InvokeTaskCallback(string id, string result)
         {
             var reference = TrackedReference.Get(id);
-            var function = reference.TrackedInstance as Action<TResult>;
+            var function = reference.TrackedInstance as Action<string>;
             function(result);
         }
     }

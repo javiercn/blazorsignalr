@@ -39,6 +39,7 @@ namespace DotnetInvoke {
 
     export interface DotNetArgsList {
         Argument1?: any;
+        Argument2?: any;
     }
 
     export function invokeDotNetMethod<T>(methodOptions: MethodOptions, args: DotNetArgsList = {}): (T | null) {
@@ -91,19 +92,26 @@ namespace DotnetInvoke {
         const args = argsJson.map(json => JSON.parse(Blazor.platform.toJavaScriptString(json)));
         const result = funcInstance.apply(null, args) as Promise<any>;
         result.then(res => {
-            if (async.Function.Method.TypeArguments !== undefined &&
-                Object.getOwnPropertyNames(async.Function.Method.TypeArguments).length > 0) {
-
-            }
-            if (res !== null && res !== undefined) {
-                const resultJson = JSON.stringify(result);
-                return Blazor.platform.toDotNetString(resultJson);
-            } else {
-                return null;
-            }
+            invokeDotNetMethod({
+                Type: {
+                    Assembly: async.Function.Type.Assembly,
+                    TypeName: async.Function.Type.TypeName,
+                    TypeArguments: {}
+                },
+                Method: {
+                    Name: async.Function.Method.Name,
+                    TypeArguments: {},
+                    ParameterTypes: async.Function.Method.ParameterTypes
+                }
+            },
+                {
+                    Argument1: async.Success,
+                    Argument2: JSON.stringify(res)
+                });
         });
     }
 
+    Blazor.registerFunction("invokeWithJsonMarshallingAsync", invokeWithJsonMarshallingAsync);
     Blazor.registerFunction("Microsoft.AspNetCore.Blazor.InvokeJavaScriptCallback", invokeJavaScriptCallback);
 
     type RefType = Exclude<any, undefined | null>;

@@ -1,4 +1,5 @@
 ﻿@using BlazorApp.Client.SignalR
+@using BlazorApp.Client.Infrastructure
 
 <label>
     Who are you?
@@ -17,8 +18,12 @@
     public IList<string> Messages { get; set; } = new List<string>();
     public HubConnection Hub { get; set; }
 
-    protected override Task OnInitAsync()
+    protected override async Task OnInitAsync()
     {
+        await Task.Delay(10000);
+        var result = await JavaScriptInvoke.InvokeJavaScriptFunctionAsync<MethodParameter>("AsyncJsFunc",new MethodParameter { IntegerValue = 4, StringValue = "String 4" });
+        Console.WriteLine($"{result.StringValue} - {result.IntegerValue}");
+
         Hub = new HubConnection(
             "/grouproom",
             new HubConnectionOptions { Logger = LogLevel.Information });
@@ -28,8 +33,6 @@
             Messages.Add(message);
             StateHasChanged();
         });
-
-        return Task.CompletedTask;
     }
 
     public async void JoinTheRoom()
